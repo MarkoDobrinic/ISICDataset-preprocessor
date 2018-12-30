@@ -11,8 +11,10 @@ from PIL import Image, ImageFilter
 from keras.preprocessing.image import ImageDataGenerator
 from scipy import ndimage
 
-directory = "./temp/df/df_0024318.jpg"
-image_path = "./temp/df/"
+
+#directory = "./temp/df/df_0024318.jpg"
+images_path = ".\\temp\\df\\"
+train_path = ".\\data\\ISICSet\\train\\"
 aug_images = []
 drop_list=[]
 
@@ -35,29 +37,79 @@ def plots(ims, figsize=(12,6), rows = 1, interp = False, titles = None):
         plt.imshow(ims[i], interpolation=None if interp else 'none')
 
 
-gen = ImageDataGenerator(rotation_range=10, width_shift_range=0.15,
-                         height_shift_range=0.1, shear_range=0.20,
-                         zoom_range=0.5, channel_shift_range=35.,
-                         horizontal_flip=True)
-
 #Plot one image
-image = np.expand_dims(ndimage.imread(directory),0)
-plt.imshow(image[0])
-plt.show()
+
+#plt.imshow(image[0])
+#plt.show()
+
 
 '''
     Iterate and generate all image 
     variations defined in gen variable with 
     certain number of iterations
 '''
-aug_iter = gen.flow(image)
+
+#Image Data Generator Keras
+
+gen = ImageDataGenerator(rotation_range=180, width_shift_range=0.15,
+                         height_shift_range=0.1, shear_range=0.10,
+                         zoom_range=0.6, channel_shift_range=35.,
+                         horizontal_flip=True)
+
 
 def generate_images(num_iterations):
+
+    image = np.expand_dims(ndimage.imread(
+        os.path.join(images_path, os.listdir(images_path)[3])), 0)
+
+    aug_iter = gen.flow(image)
+
     for i in range(num_iterations):
         temp_image = next(aug_iter)[0].astype(np.uint8)
         aug_images.append(temp_image)
 
 
+def generate_images_filters(training_dir):
+
+    for dir in next(os.walk(training_dir))[1]:
+
+        print("GENERATING filters for ... : ", os.path.join(training_dir, dir))
+
+        for dirname, dirs, files in os.walk(os.path.join(training_dir, dir)):
+
+            #filelist = get_all_images_in_dir(dir)
+            #print(filelist)
+            #os.chdir(".\\temp\\df")
+
+            #for count in range(0, 2):
+            for imagefile in files:
+                #os.chdir("..\\df\\")
+                im = Image.open(os.path.join(training_dir, dir, imagefile))
+                #im = im.convert("RGB")
+                #r, g, b = im.split()
+                #r = r.convert("RGB")
+                #g = g.convert("RGB")
+                #b = b.convert("RGB")
+                image_output_name_bl = os.path.splitext(imagefile)[0] + '_bl_' + os.path.splitext(imagefile)[1]
+                image_output_name_us = os.path.splitext(imagefile)[0] + '_us_' + os.path.splitext(imagefile)[1]
+                output_filename_bl = os.path.join(training_dir, dir, image_output_name_bl)
+                output_filename_us = os.path.join(training_dir, dir, image_output_name_us)
+
+                im_blur = im.filter(ImageFilter.GaussianBlur)
+                im_unsharp = im.filter(ImageFilter.UnsharpMask)
+
+                #os.chdir('..\\copy\\')
+                #r.save(os.path.splitext(imagefile)[0] + '_r_' + str(count) + os.path.splitext(imagefile)[1])
+                #g.save(os.path.splitext(imagefile)[0] + '_g_' + str(count) + os.path.splitext(imagefile)[1])
+                #b.save(os.path.splitext(imagefile)[0] + '_b_' + str(count) + os.path.splitext(imagefile)[1])
+                #im_blur.save(os.path.splitext(imagefile)[0] + '_bl_' + os.path.splitext(imagefile)[1])
+                #im_unsharp.save(os.path.splitext(imagefile)[0] + '_us_' + os.path.splitext(imagefile)[1])
+
+                im_blur.save(output_filename_bl)
+                im_unsharp.save(output_filename_us)
+
+
+#Helper function for getting all images in a directory
 def get_all_images_in_dir(dir):
     filelist = []
     for root, dirs, files in os.walk(dir):
@@ -66,59 +118,42 @@ def get_all_images_in_dir(dir):
                 filelist.append(file)
     return filelist
 
-def generate_images_filters(image_path):
+def prune_image_directory(images_dir):
 
-    filelist = get_all_images_in_dir(image_path)
-
-    print(filelist)
-    os.chdir("./temp/df")
-    for count in range(0, 2):
-        for imagefile in filelist:
-            os.chdir("../df/")
-            im = Image.open(imagefile)
-            im = im.convert("RGB")
-            r, g, b = im.split()
-            r = r.convert("RGB")
-            g = g.convert("RGB")
-            b = b.convert("RGB")
-            im_blur = im.filter(ImageFilter.GaussianBlur)
-            im_unsharp = im.filter(ImageFilter.UnsharpMask)
-
-            os.chdir('../copy/')
-            r.save(os.path.splitext(imagefile)[0] + '_r_' + str(count) + os.path.splitext(imagefile)[1])
-            g.save(os.path.splitext(imagefile)[0] + '_g_' + str(count) + os.path.splitext(imagefile)[1])
-            b.save(os.path.splitext(imagefile)[0] + '_b_' + str(count) + os.path.splitext(imagefile)[1])
-            im_blur.save(os.path.splitext(imagefile)[0] + '_bl_' + str(count) + os.path.splitext(imagefile)[1])
-            im_unsharp.save(os.path.splitext(imagefile)[0] + '_us_' + str(count) + os.path.splitext(imagefile)[1])
-
-
-def prune_image_directory(image_dir):
-
-    filelist = get_all_images_in_dir(image_dir)
-    print(len(filelist))
-
+    filelist = get_all_images_in_dir(images_dir)
+    required_value = len(filelist) - 1500
     #prepare values for removing
     random.seed()
-    for i in range(len(filelist)):
-        if i % 2 == 0:
-            rnd_item = filelist[random.randint(0, len(filelist) - 1)]
+
+    print("Size before pruning: ", len(filelist))
+
+    while len(drop_list) <= required_value:
+
+        rnd_item = filelist[random.randint(0, len(filelist) - 1)]
+        rnd_item_bl = os.path.splitext(rnd_item)[0] + '_bl_' + os.path.splitext(rnd_item)[1]
+        rnd_item_us = os.path.splitext(rnd_item)[0] + '_us_' + os.path.splitext(rnd_item)[1]
+
+        if ('us' not in rnd_item) and ('bl' not in rnd_item):
+
             filelist.remove(rnd_item)
+            filelist.remove(rnd_item_bl)
+            filelist.remove(rnd_item_us)
+
             if rnd_item not in drop_list:
+
                 drop_list.append(rnd_item)
+                drop_list.append(rnd_item_bl)
+                drop_list.append(rnd_item_us)
 
-    print(len(drop_list))
+        for item in drop_list:
+            if os.path.isfile(os.path.join(images_dir, item)):
+                os.remove(os.path.join(images_dir, item))
 
-    for item in drop_list:
-        exists = os.path.isfile(os.path.join(image_dir, item))
-        if exists:
-            os.remove(os.path.join("temp/copy/", item))
-        else:
-            print("Error - file not found!")
+    print("Drop list size: ", len(drop_list))
 
-
-    filelist = get_all_images_in_dir(image_dir)
-    print(len(filelist))
-
+    #Checking file list after pruning
+    filelist = get_all_images_in_dir(images_dir)
+    print("Size after pruning: ",len(filelist))
 
 
 
@@ -127,17 +162,16 @@ def prune_image_directory(image_dir):
 ###############################################################
 
 #Get 10 samples
-#aug_images = [next(aug_iter)[0].astype(np.uint8) for i in range(56)]
-
-'''
-try:
-    generate_images(36)
-    plots(aug_images, figsize=(40, 20), rows=4)
-    plt.show()
-except:
-    print("Error occured: " , OSError)
-'''
+#aug_images = [next(aug_iter)[0].astype(np.uint8) for i in range(10)]
 
 
-copy_path="./temp/copy/"
+#testing Keras Image Generator
+#generate_images(10)
+#plots(aug_images, figsize=(40, 20), rows=2)
+#plt.show()
+
+#generate_images_filters(train_path)
+
+print(drop_list)
+copy_path=".\\temp\\nv\\"
 prune_image_directory(copy_path)

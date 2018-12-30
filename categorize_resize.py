@@ -4,42 +4,36 @@ import os
 import pathlib
 import re
 import shutil
+from os.path import dirname, join
 from shutil import copyfile
 import numpy as np
 import pandas as pd
+from PIL import Image
+from dotenv import load_dotenv
+
+'''
+    Loading .env file - environment variables
+'''
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
 
-
-###########################################################################################
-
-def one_hot_encoded(class_numbers, num_classes=None):
-    """
-    Generate the One-Hot encoded class-labels from an array of integers.
-    For example, if class_number=2 and num_classes=4 then
-    the one-hot encoded label is the float array: [0. 0. 1. 0.]
-    :param class_numbers:
-        Array of integers with class-numbers.
-        Assume the integers are from zero to num_classes-1 inclusive.
-    :param num_classes:
-        Number of classes. If None then use max(class_numbers)+1.
-    :return:
-        2-dim array of shape: [len(class_numbers), num_classes]
-    """
-
-    # Find the number of classes if None is provided.
-    # Assumes the lowest class-number is zero.
-    if num_classes is None:
-        num_classes = np.max(class_numbers) + 1
-
-    return np.eye(num_classes, dtype=float)[class_numbers]
-
-###########################################################################################
-
+'''
+    Setting local variables
+'''
 current_folder = os.getcwd()
 class_names = []
 colnames = ['image', 'MEL', 'NV', 'BCC', 'AKIEC', 'BKL', 'DF', 'VASC']
-images_folder = "D:\DIPLOMSKI\Dataset\ISIC2018_Task3_Training_Input"
+IMAGES_FOLDER = os.environ.get("IMAGES_TRAINING_DIR")
 list_MEL, list_NV, list_BCC, list_AKIEC, list_BKL, list_DF, list_VASC = ([] for i in range(7))
+
+
+'''
+    Create a list of categories according to ISIC ground truth .csv file
+'''
+for list in colnames:
+    if list != "image":
+        class_names.append(list.lower())
 
 #sanity checking no. of images
 def count_total_images(images_folder):
@@ -50,14 +44,6 @@ def count_total_images(images_folder):
                 counter += 1
     print("num files: ", counter)
 
-'''
-    Create a list of categories according to ISIC ground truth .csv file
-'''
-def create_class_name_list(colnames_list):
-    for list in colnames_list:
-        if list != "image":
-            class_names.append(list.lower())
-    print(class_names)
 
 '''
     Import ISIC .csv file into pandas and extract image names according to
@@ -65,7 +51,7 @@ def create_class_name_list(colnames_list):
 '''
 def pandas_reader_csv(file_obj):
 
-    csv_data = pd.read_csv(csv_path, names=colnames, delimiter=',')
+    csv_data = pd.read_csv(CSV_PATH, names=colnames, delimiter=',')
 
     for index, row in csv_data.iterrows():
         if row[0] == str("image"):
@@ -107,12 +93,16 @@ def create_directories():
     #  'knifey-spoony/test/knifey/',
     #  'knifey-spoony/test/spoony/']
 
+    os.chdir(".\\")
+    print("Creating train directories ...")
     for ISIC_class in class_names:
-        if not os.path.exists("data/ISICset/{}/{}".format("train", ISIC_class)):
-            pathlib.Path('data/ISICset/{}/{}'.format("train", ISIC_class)).mkdir(parents=True, exist_ok=True)
+        if not os.path.exists(".\\data\\ISICset\\{}\\{}".format("train", ISIC_class)):
+            pathlib.Path('.\\data\\ISICset\\{}\\{}'.format("train", ISIC_class)).mkdir(parents=True, exist_ok=True)
 
-        if not os.path.exists("data/ISICset/{}/{}".format("test", ISIC_class)):
-            pathlib.Path('data/ISICset/{}/{}'.format("test", ISIC_class)).mkdir(parents=True, exist_ok=True)
+    print("Creating test directories ...")
+    for ISIC_class in class_names:
+        if not os.path.exists(".\\data\\ISICset\\test\\{}".format(ISIC_class)):
+            pathlib.Path('.\\data\\ISICset\\test\\{}'.format(ISIC_class)).mkdir(parents=True, exist_ok=True)
 
 
 '''
@@ -124,8 +114,11 @@ def find_and_copy_images_to_training(current_list, folder_ext):
 
     dst_dir = "data/ISICset/train/{}/".format(folder_ext)
 
+    if not os.path.exists(dst_dir):
+        os.makedirs(dst_dir)
+
     for item in current_list:
-        for file in glob.glob(images_folder + "\\" + item + '*', recursive=True):
+        for file in glob.glob(IMAGES_FOLDER + "\\" + item + '*', recursive=True):
             if file not in glob.glob(dst_dir + "\\" + item + '*', recursive=True):
                 shutil.copy(file, dst_dir)
                 dst_file = os.path.join(dst_dir, file)
@@ -136,14 +129,14 @@ def find_and_copy_images_to_training(current_list, folder_ext):
     return
 
 
-
+# Examples for rename and replace fun:
+# rename(r"./data/ISICset/train/df/", r'*_*.jpg', r'df%s')
+# replace(r"./data/ISICset/train/df/")
 def rename(dir, pattern, titlePattern):
     for pathAndFilename in glob.iglob(os.path.join(dir, pattern)):
         title, ext = os.path.splitext(os.path.basename(pathAndFilename))
         os.rename(pathAndFilename,
                 os.path.join(dir, titlePattern % title + ext))
-
-
 
 def replace(dir):
     name_map = {
@@ -166,9 +159,8 @@ def replace(dir):
 '''
 def replace_and_rename(training_dir):
     for dir in next(os.walk(training_dir))[1]:
-        rename(r'./data/ISICset/train/' + "\\" + dir, r'*.jpg', r'{}%s'.format(dir))
-        replace('./data/ISICset/train/' + "\\" + dir)
-
+        rename('.\\data\\ISICset\\train\\' + "\\" + dir, r'*.jpg', r'{}%s'.format(dir))
+        replace('.\\data\\ISICset\\train\\' + "\\" + dir)
 
 def total_images_copied(training_dir):
     total = 0
@@ -177,19 +169,29 @@ def total_images_copied(training_dir):
 
     print("Total images copied across categories :", total)
 
-
-
-
+def resize_training_examples(training_dir):
+    basewidth = 600
+    for dir in next(os.walk(training_dir))[1]:
+        print("RESIZING... : ", os.path.join(training_dir, dir))
+        for dirname, dirs, files in os.walk(os.path.join(training_dir, dir)):
+            for item in files:
+                if os.path.isfile(os.path.join(training_dir, dir, item)):
+                    im = Image.open(os.path.join(training_dir, dir, item))
+                    x, y = im.size
+                    new_dims = (200, 150)
+                    output = im.resize(new_dims, Image.ANTIALIAS)
+                    output_filename = os.path.join(training_dir, dir, item)
+                    output.save(output_filename, "JPEG", quality=95)
 
 if __name__ == "__main__":
-    csv_path = "D:\DIPLOMSKI\Dataset\ISIC2018_Task3_Training_GroundTruth\ISIC2018_Task3_Training_GroundTruth.csv"
-    with open(csv_path, "rt") as f_obj:
+    CSV_PATH = os.environ.get("GT_TRAINING_DIR")
+    with open(CSV_PATH, "rt") as f_obj:
         pandas_reader_csv(f_obj)
         create_directories()
-        count_total_images(images_folder)
-
+        count_total_images(IMAGES_FOLDER)
         '''
             Copy all images to data directory
+            - uncomment each line for categorizing, copying and resizing
         '''
         #find_and_copy_images_to_training(list_VASC, "vasc")
         #find_and_copy_images_to_training(list_NV, "nv")
@@ -200,7 +202,8 @@ if __name__ == "__main__":
         #find_and_copy_images_to_training(list_AKIEC, "akiec")
 
 
-        #rename(r"./data/ISICset/train/df/", r'*_*.jpg', r'df%s')
-        #replace(r"./data/ISICset/train/df/")
+        #replace_and_rename('.\\data\\ISICset\\train\\')
 
-        #replace_and_rename('./data/ISICset/train/')
+        #resize_training_examples(".\\data\\ISICset\\train\\")
+
+
