@@ -1,15 +1,14 @@
-import csv
 import glob
 import os
 import pathlib
+import random
 import re
 import shutil
 from os.path import dirname, join
-from shutil import copyfile
-import numpy as np
 import pandas as pd
 from PIL import Image
 from dotenv import load_dotenv
+from image_processor import get_all_images_in_dir
 
 '''
     Loading .env file - environment variables
@@ -42,7 +41,7 @@ def count_total_images(images_folder):
         if filename.endswith(".jpg"):
                 #print(os.path.join(directory, filename))
                 counter += 1
-    print("num files: ", counter)
+    print("\nTotal number of files in original dataset: ", counter)
 
 
 '''
@@ -98,11 +97,15 @@ def create_directories():
     for ISIC_class in class_names:
         if not os.path.exists(".\\data\\ISICset\\{}\\{}".format("train", ISIC_class)):
             pathlib.Path('.\\data\\ISICset\\{}\\{}'.format("train", ISIC_class)).mkdir(parents=True, exist_ok=True)
+        else:
+            print("Training directory already exist.")
 
     print("Creating test directories ...")
     for ISIC_class in class_names:
         if not os.path.exists(".\\data\\ISICset\\test\\{}".format(ISIC_class)):
             pathlib.Path('.\\data\\ISICset\\test\\{}'.format(ISIC_class)).mkdir(parents=True, exist_ok=True)
+        else:
+            print("Test directory already exist.")
 
 
 '''
@@ -127,6 +130,31 @@ def find_and_copy_images_to_training(current_list, folder_ext):
 
     print("Files copied >> {}".format(folder_ext))
     return
+
+def move_images_to_test(training_dir, test_dir):
+
+    files_to_move = []
+
+    '''
+        Moving 25 images from each training folder to respective
+        test folder - Total of 175 test images.
+    '''
+    for dir in next(os.walk(training_dir))[1]:
+        print("Moving from dir: ", dir)
+        total_files_dir = get_all_images_in_dir(os.path.join(training_dir, dir))
+        print(len(total_files_dir))
+        for i in range(25):
+            rnd_item = total_files_dir[random.randint(0, len(total_files_dir) - 1)]
+            print("RND item: ", rnd_item)
+            files_to_move.append(rnd_item)
+            total_files_dir.remove(rnd_item)
+
+        for image in files_to_move:
+            if os.path.isfile(os.path.join(training_dir, dir, image)):
+                print("image - ",image)
+                shutil.move(os.path.join(training_dir, dir, image), os.path.join(test_dir, dir, image))
+
+
 
 
 # Examples for rename and replace fun:
@@ -169,6 +197,13 @@ def total_images_copied(training_dir):
 
     print("Total images copied across categories :", total)
 
+
+'''
+    Fun that resizes training image size from base 600x450
+    to 200x150 pixels.
+    
+'''
+#TODO - choose image size dinamically
 def resize_training_examples(training_dir):
     basewidth = 600
     for dir in next(os.walk(training_dir))[1]:
@@ -182,6 +217,42 @@ def resize_training_examples(training_dir):
                     output = im.resize(new_dims, Image.ANTIALIAS)
                     output_filename = os.path.join(training_dir, dir, item)
                     output.save(output_filename, "JPEG", quality=95)
+
+
+'''
+    Print out training and test set size.
+'''
+def print_dataset_stats():
+
+    training_dir = os.environ.get("APP_TRAIN_DIR")
+    test_dir = os.environ.get("APP_TEST_DIR")
+    dataset_dict_train={}
+    dataset_dict_test={}
+    total_train = 0
+    total_test = 0
+
+    for dir in next(os.walk(training_dir))[1]:
+        total_files = len([name for name in os.listdir(os.path.join(training_dir, dir)) if os.path.isfile(os.path.join(training_dir, dir, name))])
+        total_train += total_files
+        dataset_dict_train[dir] = total_files
+
+    for dir in next(os.walk(test_dir))[1]:
+        total_files = len([name for name in os.listdir(os.path.join(test_dir, dir)) if os.path.isfile(os.path.join(test_dir, dir, name))])
+        total_test += total_files
+        dataset_dict_test[dir] = total_files
+
+
+    print("\nTraining dir stats:")
+    print("------------------------------------")
+    print(dataset_dict_train)
+    print("Total num. of files in TRAIN: ", total_train)
+
+    print("\nTest dir stats:")
+    print("------------------------------------")
+    print(dataset_dict_test)
+    print("Total num. of files in TEST: ", total_test)
+
+
 
 if __name__ == "__main__":
     CSV_PATH = os.environ.get("GT_TRAINING_DIR")
@@ -206,4 +277,8 @@ if __name__ == "__main__":
 
         #resize_training_examples(".\\data\\ISICset\\train\\")
 
+        #print_dataset_stats()
 
+        #move_images_to_test(".\\data\\ISICset\\train\\", ".\\data\\ISICset\\test\\")
+
+        print_dataset_stats()

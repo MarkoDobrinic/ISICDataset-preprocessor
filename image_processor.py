@@ -153,7 +153,7 @@ def prune_image_directory(images_dir):
 
     #Checking file list after pruning
     filelist = get_all_images_in_dir(images_dir)
-    print("Size after pruning: ",len(filelist))
+    print("Size after pruning: ", len(filelist))
 
 
 
@@ -172,6 +172,5 @@ def prune_image_directory(images_dir):
 
 #generate_images_filters(train_path)
 
-print(drop_list)
 copy_path=".\\temp\\nv\\"
 prune_image_directory(copy_path)
